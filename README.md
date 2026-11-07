@@ -86,6 +86,7 @@ constructor values appear in the live storage slots. Add
 ## Related
 
 The escrow primitive (DeliverableEscrow - acceptance criteria in words settled
-in basis points) lives in
-[IanCao/genlayer-primitives](https://github.com/IanCao/genlayer-primitives)
-together with the publishing pipeline for the web client.
+in basis points) is its own product at
+[IanCao/settle](https://github.com/IanCao/settle), with its own client, tests and
+deployment. The publishing pipeline for this repo's web client lives in
+[IanCao/genlayer-primitives](https://github.com/IanCao/genlayer-primitives).
