@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Adjudicate - a bonded claim oracle on GenLayer</title>
+<meta name="description" content="Post a claim with a bond, let anyone challenge it, and let GenLayer validators settle the dispute. An uncontested claim never calls a model." />
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<header class="bar">
+  <div class="brand">
+    <span class="mark" aria-hidden="true"></span>
+    <div>
+      <h1>Adjudicate</h1>
+      <p>bonded claims, settled by consensus</p>
+    </div>
+  </div>
+  <div class="bar-right">
+    <span class="pill" id="chainPill">Studionet</span>
+    <button class="btn btn-ghost" id="connectBtn">Connect wallet</button>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div>
+      <h2>A claim is only as good as the cost of being wrong about it.</h2>
+      <p class="lede">
+        Post a statement with a bond and the public evidence behind it. Anyone can
+        challenge by matching the bond. Only a challenge invokes the model - an
+        uncontested claim simply ages out and the bond comes back.
+      </p>
+    </div>
+    <dl class="stats">
+      <div><dt>claims</dt><dd id="statClaims">-</dd></div>
+      <div><dt>open</dt><dd id="statOpen">-</dd></div>
+      <div><dt>at stake</dt><dd id="statPot">-</dd></div>
+    </dl>
+  </section>
+
+  <section class="contract" id="contractBar">
+    <label for="addressInput">Contract</label>
+    <input id="addressInput" spellcheck="false" value="0x3a3A9c681cD547ccb293a6329839cc50D529fAd9" />
+    <button class="btn btn-ghost" id="reloadBtn">Load</button>
+    <a class="link" id="explorerLink" target="_blank" rel="noreferrer">explorer</a>
+    <span class="tag" id="versionTag">v1</span>
+  </section>
+
+  <section class="grid">
+    <form class="card composer" id="composer">
+      <h3>Post a claim</h3>
+      <label>Statement <span class="hint">factual, falsifiable, under 1024 chars</span>
+        <textarea id="statement" rows="3" maxlength="1024" placeholder="Protocol X shipped v2 on 2026-10-30."></textarea>
+      </label>
+      <label>Evidence <span class="hint">one http(s) URL per line, max 3</span>
+        <textarea id="evidence" rows="2" placeholder="https://example.com/changelog"></textarea>
+      </label>
+      <label>Bond <span class="hint">GEN, at least the protocol floor (0.01)</span>
+        <input id="bond" inputmode="decimal" value="0.01" />
+      </label>
+      <button class="btn btn-primary" type="submit" id="postBtn">Lock bond and post</button>
+      <p class="fine">Your bond is returned if nobody challenges within the window.</p>
+    </form>
+
+    <aside class="card legend">
+      <h3>How it settles</h3>
+      <ol class="steps">
+        <li><b>OPEN</b> - bonded, challenge window running. No model, no cost.</li>
+        <li><b>CHALLENGED</b> - someone matched the bond and disputed it.</li>
+        <li><b>RESOLVED</b> - validators decided. Nothing is paid yet.</li>
+        <li><b>APPEALED</b> - the loser matched the bond and filed counter evidence. The second reading cannot see the first.</li>
+        <li><b>SETTLED</b> - paid, final. Winner takes the pot.</li>
+      </ol>
+      <p class="fine">
+        On a contract without an appeal round the flow stops at
+        <b>RESOLVED</b>-less settlement: the verdict pays immediately.
+      </p>
+    </aside>
+  </section>
+
+  <section class="claims">
+    <div class="claims-head">
+      <h3>Claims</h3>
+      <div class="bar-right">
+        <button class="btn btn-ghost" id="withdrawBtn" hidden>Withdraw</button>
+        <button class="btn btn-ghost" id="refreshBtn">Refresh</button>
+      </div>
+    </div>
+    <div id="claimsList" class="claims-list">
+      <p class="empty">Loading claims…</p>
+    </div>
+  </section>
+</main>
+
+<aside class="txlog" id="txlog" aria-live="polite">
+  <div class="txlog-head">
+    <span>Transaction</span>
+    <button id="txlogClose" aria-label="close">×</button>
+  </div>
+  <div class="txlog-body" id="txlogBody"></div>
+</aside>
+
+<footer>
+  <p>
+    Source and design notes:
+    <a href="https://github.com/IanCao/genlayer-primitives" target="_blank" rel="noreferrer">genlayer-primitives</a>.
+    Read-only browsing works without a wallet; writing needs one on Studionet.
+  </p>
+</footer>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
