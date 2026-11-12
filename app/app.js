@@ -29,6 +29,7 @@ const CLAIM_FIELDS_V2 = [
   ...CLAIM_FIELDS_V1,
   "appeal_deadline", "appellant", "appeal_bond", "counter_evidence",
 ];
+const CLAIM_FIELDS_V3 = [...CLAIM_FIELDS_V2, "challenged_at"];
 
 const state = {
   address: new URLSearchParams(location.search).get("address") || $("addressInput").value.trim(),
@@ -65,7 +66,8 @@ function parseGen(text) {
 }
 
 function normaliseClaim(raw, version) {
-  const fields = version >= 2 ? CLAIM_FIELDS_V2 : CLAIM_FIELDS_V1;
+  const fields =
+    version >= 3 ? CLAIM_FIELDS_V3 : version >= 2 ? CLAIM_FIELDS_V2 : CLAIM_FIELDS_V1;
   let obj = raw;
   if (Array.isArray(raw)) {
     obj = {};
@@ -91,6 +93,7 @@ function normaliseClaim(raw, version) {
     appellant: String(obj.appellant ?? ""),
     appealBond: BigInt(obj.appeal_bond ?? 0),
     counterEvidence: String(obj.counter_evidence ?? ""),
+    challengedAt: Number(obj.challenged_at ?? 0),
   };
 }
 
@@ -191,10 +194,32 @@ async function loadContract(address) {
 
   const methods = Object.keys(schema.methods || {});
   state.capabilities = new Set(methods);
-  const version = methods.includes("resolve_appeal") ? 2 : 1;
+  // Three shapes so far, and they are nested: v3 has every v2 method plus the
+  // deadlock exit, so test for the newest capability first.
+  const version = methods.includes("release_stuck")
+    ? 3
+    : methods.includes("resolve_appeal")
+      ? 2
+      : 1;
   state.version = version;
   $("versionTag").textContent = `v${version}`;
   $("versionTag").title = methods.join(", ");
+
+  state.stuckWindow = 0;
+  if (version >= 3) {
+    try {
+      state.stuckWindow = Number(
+        (await reader.readContract({
+          address,
+          functionName: "stuck_after",
+          args: [],
+          jsonSafeReturn: true,
+        })) ?? 0,
+      );
+    } catch {
+      state.stuckWindow = 0;
+    }
+  }
 
   await refresh();
 }
@@ -337,6 +362,19 @@ function actionButtons(claim) {
   }
   if (claim.status === "CHALLENGED") {
     buttons.push({ label: "Resolve (round 1)", fn: "resolve", args: [BigInt(claim.id)] });
+    // v3 only: a dispute that never produced a decision is releasable, and the
+    // money goes back to both sides. Shown only once the window has passed, so
+    // the button cannot be used to dodge a verdict.
+    if (state.stuckWindow > 0 && claim.challengedAt > 0) {
+      const releasableAt = claim.challengedAt + state.stuckWindow;
+      if (now >= releasableAt) {
+        buttons.push({
+          label: "Release · refund both",
+          fn: "release_stuck",
+          args: [BigInt(claim.id)],
+        });
+      }
+    }
   }
   if (claim.status === "RESOLVED") {
     const open = now < claim.appealDeadline;

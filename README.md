@@ -15,7 +15,7 @@ post or challenge.
 contracts/   the Intelligent Contracts
 app/         the web client (no framework, vendored genlayer-js)
 docs/        design documents, one per contract
-tests/       57 offline logic tests, no network, no Docker
+tests/       80 offline logic tests, no network, no Docker
 scripts/     read-only on-chain verification of the deployments
 tools/       an offline GenVM shim the tests run against
 ```
@@ -26,12 +26,39 @@ tools/       an offline GenVM shim the tests run against
 |---|---|---|
 | OptimisticClaimOracle | `contracts/optimistic_claim_oracle.py` | "Is this factual claim true?" - bond, challenge, consensus |
 | OptimisticClaimOracleV2 | `contracts/optimistic_claim_oracle_v2.py` | Same, plus a remedy: the loser may appeal, and round two is blind |
+| OptimisticClaimOracleV3 | `contracts/optimistic_claim_oracle_v3.py` | Same, plus an exit when no verdict can be reached at all |
 
 Deployed on GenLayer Studionet:
 
 | Contract | Address | Constructor args |
 |---|---|---|
 | OptimisticClaimOracle | [`0x3a3A9c681cD547ccb293a6329839cc50D529fAd9`](https://explorer-studio.genlayer.com/address/0x3a3A9c681cD547ccb293a6329839cc50D529fAd9) | `min_bond=1e16`, `challenge_window=86400` |
+
+## v3: the case where nobody can decide
+
+v2 made a wrong verdict appealable. It left a worse hole: if `resolve()` cannot
+reach consensus - a page that renders differently per fetch, a model set that
+splits three ways, a source that 502s for half the validators - the call reverts
+and the claim stays CHALLENGED with both bonds locked. No owner, no timeout, no
+upgrade path.
+
+v3 adds a deadlock exit that pays nobody:
+
+```
+CHALLENGED --(stuck_window elapses)--> release_stuck() --> REFUNDED
+                                          each party recovers its own bond
+```
+
+Nobody profits, so there is no incentive to engineer a deadlock; the window is
+measured from the challenge rather than the last failed attempt, so a persistent
+resolver cannot keep a claim alive by calling and reverting; and the claim ends
+REFUNDED rather than SETTLED, so an indexer never counts it as judged.
+
+The same version adds `get_record(address)` - posted / upheld / refuted /
+inconclusive / uncontested, written on decisions only. Counters rather than a
+score, because a score hides the sample size and invites gaming. Rationale:
+[`docs/optimistic_claim_oracle_v3.md`](docs/optimistic_claim_oracle_v3.md);
+field-by-field diff: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Design in one paragraph
 
@@ -64,9 +91,10 @@ python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/Scripts/python -m pytest tests -q
 ```
 
-57 tests in about a second. They cover the state machine, permission edges,
-both appeal windows, the 3x appeal payout, stake refunds, consensus failure,
-prompt-injection attempts, and end-to-end value conservation. The tests run
+80 tests in about a second. They cover the state machine, permission edges,
+both appeal windows, the 3x appeal payout, stake refunds, consensus failure, the
+deadlock exit and its boundary, the per-address ledger, prompt-injection
+attempts, and end-to-end value conservation. The tests run
 against `tools/genshim/genlayer.py`, an offline GenVM shim; the consensus layer
 itself is exercised on-chain by the deployments.
 
